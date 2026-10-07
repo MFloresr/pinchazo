@@ -80,6 +80,9 @@ class Partida:
         self.log: list[str] = ["¡Empieza la partida! Que nadie pinche su globo."]
         self.ganador: str | None = None
         self.version = 0
+        self.eventos: list[dict] = []   # lo que ha pasado, para animarlo y sonarlo en el navegador
+        self._n_evento = 0
+        self._evento("turno", j=self.actual().id)
 
     # ------------------------------------------------------------------ consultas
     def jugador(self, jid: str) -> Jugador:
@@ -125,6 +128,12 @@ class Partida:
     def _cambio(self) -> None:
         self.version += 1
 
+    def _evento(self, tipo: str, **datos) -> None:
+        """Apunta un hecho estructurado (con número creciente) para que cada navegador lo anime."""
+        self._n_evento += 1
+        self.eventos.append({"n": self._n_evento, "tipo": tipo, **datos})
+        del self.eventos[:-40]
+
     def _anotar(self, texto: str) -> None:
         self.log.append(texto)
         del self.log[:-60]
@@ -142,6 +151,7 @@ class Partida:
             self.fase = Fase.FIN
             self.ganador = vivos[0].id
             self._anotar(f"🏆 ¡{vivos[0].nombre} gana la partida!")
+            self._evento("fin", j=vivos[0].id)
             return True
         return False
 
@@ -152,6 +162,7 @@ class Partida:
         self.fase = Fase.TURNO
         extra = f" ({turnos} turnos seguidos)" if turnos > 1 else ""
         self._anotar(f"Turno de {self.actual().nombre}{extra}.")
+        self._evento("turno", j=self.actual().id, turnos=turnos)
 
     def _fin_de_un_turno(self) -> None:
         """Se ha gastado uno de los turnos de la persona. Si no le quedan, pasa a la siguiente."""
@@ -219,6 +230,7 @@ class Partida:
         nombres = " + ".join(c for c in cartas)
         destino = f" contra {self._nombre(objetivo)}" if objetivo else ""
         self._anotar(f"{j.nombre} juega «{nombres}»{destino}.")
+        self._evento("juega", j=jid, cartas=list(cartas), obj=objetivo)
         self._cambio()
 
     def negar(self, jid: str) -> None:
@@ -237,6 +249,7 @@ class Partida:
         p.negada = not p.negada
         p.cadena.append(jid)
         self._anotar(f"✋ {j.nombre}: «¡Ni hablar!»" + (" (anula la carta)" if p.negada else " (la carta vuelve a valer)"))
+        self._evento("negar", j=jid, anulada=p.negada)
         self._cambio()
 
     def resolver(self) -> None:
@@ -245,6 +258,7 @@ class Partida:
             raise ReglaError("No hay ninguna carta pendiente.")
         p, self.pendiente = self.pendiente, None
         self.fase = Fase.TURNO
+        self._evento("resuelve", j=p.jugador, cartas=list(p.cartas), obj=p.objetivo, anulada=p.negada)
         if p.negada:
             self._anotar("La carta queda anulada.")
             self._cambio()
@@ -256,6 +270,7 @@ class Partida:
                 carta = o.mano.pop(self.rng.randrange(len(o.mano)))
                 j.mano.append(carta)
                 self._anotar(f"{j.nombre} le roba una carta a {o.nombre}.")
+                self._evento("roba_pareja", j=j.id, obj=o.id)
         else:
             self._efecto(j, p)
         self._cambio()
@@ -273,10 +288,12 @@ class Partida:
         elif carta == "bola":
             self.visiones[j.id] = list(reversed(self.mazo[-3:]))
             self._anotar(f"{j.nombre} mira el futuro.")
+            self._evento("mira", j=j.id)
         elif carta == "remolino":
             self.rng.shuffle(self.mazo)
             self.visiones.clear()
             self._anotar("🌀 El mazo se baraja.")
+            self._evento("baraja", j=j.id)
         elif carta == "favor":
             if self.jugador(p.objetivo).mano:
                 self.favor = {"de": p.objetivo, "para": j.id}
@@ -296,6 +313,7 @@ class Partida:
         de.mano.remove(carta)
         para.mano.append(carta)
         self._anotar(f"{de.nombre} le da una carta a {para.nombre}.")
+        self._evento("favor_da", j=de.id, obj=para.id)
         self.favor = None
         self.fase = Fase.TURNO
         self._cambio()
@@ -315,18 +333,21 @@ class Partida:
         if carta != "pinchazo":
             j.mano.append(carta)
             self._anotar(f"{j.nombre} roba una carta.")
+            self._evento("roba", j=j.id)
             self._fin_de_un_turno()
         elif "parche" in j.mano:
             self._quitar(j, "parche")
             self.fase = Fase.INSERTAR
             self.insertando = j.id
             self._anotar(f"💥 ¡Pinchazo! {j.nombre} usa un Parche y salva su globo.")
+            self._evento("parche", j=j.id)
         else:
             j.vivo = False
             self.descarte += j.mano + ["pinchazo"]
             j.mano = []
             self.visiones.pop(j.id, None)
             self._anotar(f"💥 ¡Pinchazo! El globo de {j.nombre} revienta. Queda fuera.")
+            self._evento("pincha", j=j.id)
             if not self._comprobar_fin():
                 self._empezar_turno(self.siguiente_vivo(), 1)
         self._cambio()
@@ -341,5 +362,6 @@ class Partida:
         self.visiones.clear()
         self.insertando = None
         self._anotar(f"{self._nombre(jid)} esconde el Pinchazo en el mazo.")
+        self._evento("inserta", j=jid)
         self._fin_de_un_turno()
         self._cambio()

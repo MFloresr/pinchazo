@@ -280,3 +280,51 @@ def test_siempre_hay_un_pinchazo_menos_que_jugadores_vivos():
             assert p.pinchazos_en_el_mazo() == esperado
             bots.jugar_un_paso(p, "medio", rng)
         assert p.fase == Fase.FIN
+
+
+# ---------------------------------------------------------------- eventos para animar
+def tipos(p):
+    return [e["tipo"] for e in p.eventos]
+
+
+def test_los_eventos_llevan_numero_creciente_y_empiezan_con_el_turno():
+    p = nueva()
+    assert tipos(p) == ["turno"] and p.eventos[0]["j"] == "j0"
+    p = preparar(p, manos={"j0": ["esquivar"]}, mazo=["a", "b"])
+    jugar_y_resolver(p, "j0", ["esquivar"])
+    numeros = [e["n"] for e in p.eventos]
+    assert numeros == sorted(numeros) and len(set(numeros)) == len(numeros)
+    assert tipos(p) == ["turno", "juega", "resuelve", "turno"]
+
+
+def test_evento_de_robar_negar_y_pinchar():
+    p = preparar(nueva(), manos={"j0": ["esquivar"], "j1": ["negar"]}, mazo=["loro", "pinchazo"])
+    p.jugar("j0", ["esquivar"])
+    p.negar("j1")
+    p.resolver()
+    assert tipos(p)[-3:] == ["juega", "negar", "resuelve"]
+    assert p.eventos[-1]["anulada"] is True and p.eventos[-2]["anulada"] is True
+    p.robar("j0")
+    assert p.eventos[-2]["tipo"] == "roba" and p.eventos[-2]["j"] == "j0"
+    p.jugador("j1").mano = ["loro"]            # sin Parche: reventará
+    p.robar("j1")
+    assert "pincha" in tipos(p) and [e for e in p.eventos if e["tipo"] == "pincha"][0]["j"] == "j1"
+
+
+def test_evento_de_parche_inserta_y_fin():
+    p = preparar(nueva(2), manos={"j0": ["parche"]}, mazo=["pinchazo", "a", "b"])
+    p.robar("j0")
+    assert tipos(p)[-1] == "parche"
+    p.insertar("j0", 1)
+    assert "inserta" in tipos(p)
+    p.jugador("j1").mano = []
+    p.mazo.append("pinchazo")
+    p.robar("j1")
+    assert tipos(p)[-1] == "fin" and p.eventos[-1]["j"] == "j0"
+
+
+def test_solo_se_guardan_los_ultimos_eventos():
+    p = nueva(2)
+    for i in range(80):
+        p._evento("turno", j="j0")
+    assert len(p.eventos) == 40 and p.eventos[-1]["n"] == p._n_evento

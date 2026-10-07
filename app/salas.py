@@ -40,6 +40,8 @@ SALA_VACIA_S = 600         # sala sin nadie conectado
 MAX_SALAS = 200
 LETRAS = "ABCDEFGHJKLMNPQRSTUVWXYZ"   # sin I ni O, para no confundirlas con 1 y 0
 NIVELES = tuple(bots.NIVELES)
+EMOTES = ("risa", "aplauso", "susto", "diablo", "fiesta", "llanto", "fuego", "bomba")
+EMOTE_ESPERA_S = 1.2       # entre un emote y el siguiente de la misma persona
 ORDEN_MANO = list(CARTAS)
 
 
@@ -66,6 +68,7 @@ class Asiento:
     auto: bool = False                 # piloto automático (no responde o se ha ido)
     fallos: int = 0
     desconectado_desde: float | None = None
+    ultimo_emote: float = 0.0
 
     @property
     def conectado(self) -> bool:
@@ -146,6 +149,7 @@ class Sala:
             "insertando": p.insertando,
             "espera": espera,
             "log": p.log[-30:],
+            "eventos": p.eventos[-12:],
             "ganador": p.ganador,
         }
         return v
@@ -310,6 +314,9 @@ async def mensaje(salas: Salas, sala: Sala, asiento: Asiento, msg: dict) -> None
         if asiento.ws is not None:
             await asiento.ws.send_json({"t": "pong"})
         return
+    if accion == "emote":
+        await _emote(sala, asiento, msg)
+        return
     try:
         async with sala.lock:
             if accion == "iniciar":
@@ -345,6 +352,23 @@ async def mensaje(salas: Salas, sala: Sala, asiento: Asiento, msg: dict) -> None
 
 
 ACCIONES_DE_JUEGO = ("jugar", "robar", "negar", "dar", "insertar")
+
+
+async def _emote(sala: Sala, asiento: Asiento, msg: dict) -> None:
+    """Una reacción rápida (😂, 👏…) que ven todas las personas de la sala unos segundos."""
+    emote = msg.get("e")
+    if emote not in EMOTES:
+        await enviar_error(asiento, "Ese emote no existe.")
+        return
+    if ahora() - asiento.ultimo_emote < seg(EMOTE_ESPERA_S):
+        return                                   # demasiado seguido: se ignora sin avisar
+    asiento.ultimo_emote = ahora()
+    for a in list(sala.asientos):
+        if a.ws is not None:
+            try:
+                await a.ws.send_json({"t": "emote", "id": asiento.id, "e": emote})
+            except Exception:
+                a.ws, a.desconectado_desde = None, ahora()
 
 
 def _ajustes(sala: Sala, asiento: Asiento, msg: dict) -> None:

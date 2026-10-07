@@ -61,7 +61,7 @@ app/
 │   ├── cartas.py      Catálogo de cartas (nombres, textos, cantidades)
 │   ├── motor.py       Las reglas, sin nada de web: recibe acciones y cambia el estado
 │   └── bots.py        Decisiones de los bots por nivel
-└── static/            La interfaz (Vue 3 sin paso de compilación, HTML y CSS)
+└── static/            La interfaz (Vue 3 sin paso de compilación, HTML y CSS), ilustraciones y fuentes
 tests/                 67 pruebas: reglas, bots, servidor y partidas reales por WebSocket
 ```
 
@@ -69,7 +69,7 @@ tests/                 67 pruebas: reglas, bots, servidor y partidas reales por 
 - **El motor es puro Python** y se prueba sin abrir el navegador, igual que el motor de [Sudoku](https://github.com/MFloresr/sudoku).
 - **Tiempo real con WebSockets.** Cada sala tiene un «conductor» asíncrono que hace avanzar la partida: pausa a los bots para que se vea lo que hacen, espera a las personas con tiempo límite y abre la ventana de «¡Ni hablar!».
 - **La llave del asiento** (token) se envía como primer mensaje del WebSocket y no en la dirección, para que no aparezca en los registros del servidor.
-- Validación de datos con **Pydantic**, límite de tamaño y de ritmo de mensajes, y nombres escapados por Vue (no se usa `v-html`).
+- Validación de datos con **Pydantic**, límite de tamaño y de ritmo de mensajes, y nombres de jugadores escapados por Vue. El único `v-html` pinta las cartas con textos del catálogo del servidor, escapados antes.
 
 ## Probarlo en tu ordenador
 
@@ -102,8 +102,22 @@ El repositorio ya incluye `render.yaml`, así que se despliega como *Blueprint*:
 
 ## Sobre el juego
 
-Pinchazo es un juego **original**: nombres, textos y dibujos son propios (emojis y CSS). Las reglas generales de los juegos de cartas de eliminación no están protegidas, pero los nombres, el arte y los textos de otros juegos sí, y aquí no se usa ninguno.
+Pinchazo es un juego **original**: nombres, textos y dibujos son propios (los dibujos 3D son emojis Fluent con licencia MIT y el resto es CSS). Las reglas generales de los juegos de cartas de eliminación no están protegidas, pero los nombres, el arte y los textos de otros juegos sí, y aquí no se usa ninguno.
 
 ## Licencia
 
 MIT. Incluye [Vue](https://vuejs.org) 3 (MIT) en `app/static/vendor/`.
+
+Terceros incluidos en `app/static/`:
+
+- Ilustraciones de las cartas: [Fluent Emoji 3D](https://github.com/microsoft/fluentui-emoji) de Microsoft (MIT), en `img/`.
+- Fuentes [Fredoka](https://fonts.google.com/specimen/Fredoka) y [Figtree](https://fonts.google.com/specimen/Figtree) (SIL Open Font License), en `fuentes/` junto a sus licencias.
+
+## La interfaz
+
+- Cartas con relieve, brillo y efecto holográfico que sigue al puntero; la mano se abre en abanico.
+- **Arrastra** una carta a la mesa para jugarla, o suéltala sobre un avatar si necesita a alguien. También se juega tocando la carta y pulsando «Jugar», o solo con teclado.
+- Toca el mazo para robar. Un globo mide el riesgo de pinchazo y se hincha con él.
+- Cartas que vuelan, sello de «¡Ni hablar!», explosiones, confeti, anillo de tiempo en cada avatar y emotes que ven todas las personas.
+- Sonidos sintetizados en el navegador (sin archivos), con botón de silencio. Respeta `prefers-reduced-motion`.
+- Solo guarda en `localStorage` la partida en curso, tu nombre y si silenciaste el sonido; no usa cookies ni servicios externos.

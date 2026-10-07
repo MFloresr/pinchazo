@@ -23,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import salas as modulo_salas
-from .juego.cartas import CARTAS
+from .juego.cartas import CANTIDAD, CARTAS
 from .juego.motor import ReglaError
 from .salas import Salas, limpiar_nombre
 
@@ -125,7 +125,7 @@ async def ver_sala(codigo: str):
 @app.get("/api/cartas")
 async def cartas():
     """El catálogo de cartas, para que la web dibuje cada una."""
-    return CARTAS
+    return {k: {**v, "cantidad": CANTIDAD.get(k)} for k, v in CARTAS.items()}
 
 
 @app.get("/salud")

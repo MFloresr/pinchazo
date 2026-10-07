@@ -3,10 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#ffe6cf">
-  <meta name="description" content="Pinchazo: un juego de cartas de globos para jugar en el navegador con amigos o contra bots.">
+  <meta name="theme-color" content="#0A2434">
+  <meta name="description" content="Pinchazo: juego de cartas de globos para jugar en el navegador con amistades o contra bots. Sin registro.">
   <title>Pinchazo · el juego de cartas de globos</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="preload" href="/static/fuentes/fredoka-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fuentes/figtree-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/estilos.css">
 </head>
 <body>
@@ -15,283 +17,338 @@
 <div id="app" v-cloak>
   <a class="saltar" href="#principal">Saltar al contenido</a>
 
-  <!-- Avisos (errores y reconexión) -->
   <div class="avisos" aria-live="polite" role="status">
     <p v-if="reconectando" class="aviso aviso-info">Reconectando…</p>
-    <p v-if="aviso" class="aviso aviso-error" role="alert">{{ aviso }}</p>
+    <p v-if="aviso" class="aviso aviso-error">{{ aviso }}</p>
+  </div>
+
+  <div class="anuncio-zona" aria-live="polite">
+    <transition name="anuncio">
+      <div v-if="anuncio" :key="anuncio.k" class="anuncio" :class="anuncio.tono">{{ anuncio.texto }}</div>
+    </transition>
   </div>
 
   <main id="principal">
 
     <!-- ===================== INICIO ===================== -->
     <section v-if="!vista" class="inicio">
-      <header class="portada">
-        <div class="globo" aria-hidden="true">🎈</div>
-        <h1>Pinchazo</h1>
-        <p class="lema">Roba cartas, esquiva el pinchazo y que sea otra persona la que reviente.</p>
-      </header>
-
-      <div class="panel">
-        <label class="campo">
-          <span>Tu nombre</span>
-          <input v-model.trim="nombre" maxlength="16" placeholder="Cómo te llamas" autocomplete="nickname" @keyup.enter="partidaRapida">
-        </label>
-
-        <div class="bloque">
-          <h2>Jugar ya</h2>
-          <p class="ayuda">Contra bots, sin esperar a nadie.</p>
-          <div class="fila">
-            <label class="campo corto">
-              <span>Rivales</span>
-              <select v-model.number="rivales">
-                <option :value="1">1 bot</option><option :value="2">2 bots</option>
-                <option :value="3">3 bots</option><option :value="4">4 bots</option>
-              </select>
-            </label>
-            <label class="campo corto">
-              <span>Nivel</span>
-              <select v-model="nivel">
-                <option value="facil">Fácil</option><option value="medio">Medio</option><option value="dificil">Difícil</option>
-              </select>
-            </label>
-          </div>
-          <button class="boton principal grande" :disabled="cargando" @click="partidaRapida">Partida rápida contra bots</button>
-        </div>
-
-        <div class="bloque">
-          <h2>Jugar con amistades</h2>
-          <p class="ayuda">Crea una sala y comparte el enlace. Si falta gente, entran bots.</p>
-          <button class="boton" :disabled="cargando" @click="crearSala">Crear una sala</button>
-          <div class="fila unir">
-            <label class="campo corto">
-              <span>Código de sala</span>
-              <input v-model.trim="codigoUnirse" maxlength="4" placeholder="ABCD" autocapitalize="characters" @keyup.enter="unirse">
-            </label>
-            <button class="boton" :disabled="cargando || codigoUnirse.length !== 4" @click="unirse">Unirme</button>
-          </div>
-        </div>
-
-        <details class="reglas">
-          <summary>Cómo se juega</summary>
-          <div class="texto-reglas">
-            <p>Cada persona tiene un globo. En tu turno puedes <b>jugar las cartas que quieras</b> y debes terminar <b>robando una carta</b>.</p>
-            <p>Si robas un <b>💥 Pinchazo</b> y tienes un <b>🩹 Parche</b>, lo gastas y escondes el pinchazo donde quieras en el mazo. Si no lo tienes, tu globo revienta y quedas fuera. <b>Gana la última persona con el globo entero.</b></p>
-            <ul>
-              <li>💨 <b>Esquivar</b>: terminas el turno sin robar.</li>
-              <li>🥧 <b>Tartazo</b>: no robas y la siguiente persona juega dos turnos.</li>
-              <li>🔮 <b>Bola de cristal</b>: miras en secreto las 3 primeras cartas.</li>
-              <li>🌀 <b>Remolino</b>: barajas el mazo.</li>
-              <li>🤲 <b>Favor</b>: pides una carta y la otra persona elige cuál darte.</li>
-              <li>✋ <b>¡Ni hablar!</b>: cancela la carta que acaban de jugar (¡y se puede negar!).</li>
-              <li>🐙🦜🐢🦔🦩 <b>Mascotas</b>: con dos iguales robas una carta al azar a quien elijas.</li>
-            </ul>
-          </div>
-        </details>
+      <div class="fondo-globos" aria-hidden="true">
+        <img v-for="g in globosFondo" :key="g.k" class="globo-flota" src="/static/img/globo.webp" alt="" width="96" height="96"
+             :style="{ '--s': g.s + 'px', '--x': g.x + '%', '--d': g.d + 's', '--r': g.r + 's', '--dx': g.dx + 'px', '--bl': g.bl + 'px' }">
       </div>
+
+      <div class="inicio-grid">
+        <header class="portada">
+          <h1 class="logo">Pinchazo</h1>
+          <p class="lema">Roba cartas, esquiva el pinchazo y que sea otra persona la que reviente.</p>
+          <div class="abanico" aria-hidden="true">
+            <carta v-for="(c, i) in demo" :key="c" :cid="c" inclinar :style="{ '--t': i - 2 }"></carta>
+          </div>
+        </header>
+
+        <div class="panel">
+          <label class="campo">
+            <span>Tu nombre</span>
+            <input v-model.trim="nombre" maxlength="16" name="nombre" placeholder="Cómo te llamas…" autocomplete="nickname" spellcheck="false" @keyup.enter="partidaRapida">
+          </label>
+
+          <div class="bloque">
+            <h2>Jugar ya</h2>
+            <p class="ayuda">Contra bots, sin esperar a nadie.</p>
+            <div class="fila">
+              <div class="grupo" role="radiogroup" aria-label="Rivales"><span class="grupo-t" aria-hidden="true">Rivales</span><div class="segmento">
+                <label v-for="n in [1, 2, 3, 4]" :key="n"><input type="radio" name="rivales" :value="n" v-model.number="nRivales"><span>{{ n }}</span></label>
+              </div></div>
+              <div class="grupo" role="radiogroup" aria-label="Nivel"><span class="grupo-t" aria-hidden="true">Nivel</span><div class="segmento">
+                <label v-for="o in niveles" :key="o.v"><input type="radio" name="nivel" :value="o.v" v-model="nivel"><span>{{ o.t }}</span></label>
+              </div></div>
+            </div>
+            <button class="boton principal grande" :disabled="cargando" @click="partidaRapida">Partida rápida</button>
+          </div>
+
+          <div class="bloque">
+            <h2>Jugar con amistades</h2>
+            <p class="ayuda">Crea una sala y comparte el enlace. Si falta gente, entran bots.</p>
+            <button class="boton" :disabled="cargando" @click="crearSala">Crear una sala</button>
+            <div class="fila unir">
+              <label class="campo">
+                <span>Código de sala</span>
+                <input v-model.trim="codigoUnirse" name="codigo" maxlength="4" placeholder="ABCD…" autocomplete="off" spellcheck="false" autocapitalize="characters" @keyup.enter="unirse">
+              </label>
+              <button class="boton suave" :disabled="cargando || codigoUnirse.length !== 4" @click="unirse">Unirme</button>
+            </div>
+          </div>
+
+          <button class="enlace" @click="abrirReglas">Cómo se juega y qué hace cada carta</button>
+        </div>
+      </div>
+      <p class="pie">Pinchazo · juego de cartas original y gratuito · solo guarda en tu navegador tu partida en curso y tus preferencias</p>
     </section>
 
     <!-- ===================== VESTÍBULO ===================== -->
     <section v-else-if="vista.sala.estado === 'lobby'" class="vestibulo">
       <header class="cabecera">
         <h1>Pinchazo</h1>
-        <button class="boton chico" @click="salir">Salir</button>
+        <button class="boton chico suave" @click="salir">Salir</button>
       </header>
       <div class="panel">
-        <p class="ayuda">Comparte este código o el enlace con tus amistades:</p>
-        <div class="codigo" aria-label="Código de la sala">{{ vista.sala.codigo }}</div>
+        <p class="ayuda centro">Comparte este código o el enlace con tus amistades:</p>
+        <div class="codigo-sala">
+          <div class="codigo" translate="no" aria-label="Código de la sala">{{ vista.sala.codigo }}</div>
+        </div>
         <button class="boton" @click="copiarEnlace">{{ copiado ? '¡Enlace copiado!' : 'Copiar enlace' }}</button>
 
         <h2>Jugadores ({{ vista.asientos.length }}/{{ vista.sala.plazas }})</h2>
         <ul class="asientos">
-          <li v-for="a in vista.asientos" :key="a.id" :class="{ yo: a.id === vista.sala.yo, fuera: !a.conectado }">
+          <li v-for="a in vista.asientos" :key="a.id" :class="{ yo: a.id === vista.sala.yo }" :style="{ '--av': color(a.id) }">
             <span class="avatar" aria-hidden="true">{{ inicial(a.nombre) }}</span>
             <span class="nombre">{{ a.nombre }}<small v-if="a.id === vista.sala.yo"> (tú)</small></span>
-            <span v-if="a.id === vista.sala.duenio" class="etiqueta" title="Creó la sala">👑 anfitrión</span>
+            <span v-if="a.id === vista.sala.duenio" class="etiqueta">anfitrión</span>
             <span v-if="!a.conectado" class="etiqueta gris">sin conexión</span>
           </li>
           <li v-for="n in plazasLibres" :key="'libre' + n" class="libre">
-            <span class="avatar vacio" aria-hidden="true">{{ vista.sala.rellenar ? '🤖' : '?' }}</span>
+            <span class="avatar" aria-hidden="true" :style="{ '--av': '#51657a' }"><img width="96" height="96" v-if="vista.sala.rellenar" src="/static/img/bot.webp" alt=""><template v-else>?</template></span>
             <span class="nombre">{{ vista.sala.rellenar ? 'Entrará un bot' : 'Plaza libre' }}</span>
           </li>
         </ul>
 
         <div v-if="soyDuenio" class="ajustes">
-          <label class="campo corto"><span>Plazas</span>
-            <select :value="vista.sala.plazas" @change="enviar({ accion: 'ajustes', plazas: +$event.target.value })">
-              <option v-for="n in [2,3,4,5]" :key="n" :value="n">{{ n }} jugadores</option>
-            </select>
-          </label>
-          <label class="campo corto"><span>Nivel de los bots</span>
-            <select :value="vista.sala.nivel" @change="enviar({ accion: 'ajustes', nivel: $event.target.value })">
-              <option value="facil">Fácil</option><option value="medio">Medio</option><option value="dificil">Difícil</option>
-            </select>
-          </label>
-          <label class="casilla">
+          <div class="fila">
+            <div class="grupo" role="radiogroup" aria-label="Plazas"><span class="grupo-t" aria-hidden="true">Plazas</span><div class="segmento">
+              <label v-for="n in [2, 3, 4, 5]" :key="n"><input type="radio" name="plazas" :value="n" :checked="vista.sala.plazas === n" @change="enviar({ accion: 'ajustes', plazas: n })"><span>{{ n }}</span></label>
+            </div></div>
+            <div class="grupo" role="radiogroup" aria-label="Nivel de los bots"><span class="grupo-t" aria-hidden="true">Nivel de los bots</span><div class="segmento">
+              <label v-for="o in niveles" :key="o.v"><input type="radio" name="nivel-sala" :value="o.v" :checked="vista.sala.nivel === o.v" @change="enviar({ accion: 'ajustes', nivel: o.v })"><span>{{ o.t }}</span></label>
+            </div></div>
+          </div>
+          <label class="interruptor">
             <input type="checkbox" :checked="vista.sala.rellenar" @change="enviar({ accion: 'ajustes', rellenar: $event.target.checked })">
             Completar con bots si falta gente
           </label>
           <button class="boton principal grande" @click="enviar({ accion: 'iniciar' })">Empezar la partida</button>
         </div>
         <p v-else class="ayuda centro">Esperando a que {{ nombreDe(vista.sala.duenio) }} empiece la partida…</p>
+        <button class="enlace" @click="abrirReglas">Cómo se juega</button>
       </div>
     </section>
 
     <!-- ===================== PARTIDA ===================== -->
-    <section v-else class="mesa" :class="{ 'mi-turno': miTurno }">
+    <section v-else class="mesa" :class="{ 'mi-turno': miTurno, sacude: sacude }" @click="alClicMesa">
       <header class="barra">
         <span class="sala-id">Sala <b>{{ vista.sala.codigo }}</b></span>
-        <span class="turno-info" aria-live="polite">{{ estadoTexto }}</span>
-        <button class="boton chico" @click="salir">Salir</button>
+        <p class="turno-info" aria-live="polite">{{ estadoTexto }}</p>
+        <div class="barra-der">
+          <button class="icono" :aria-pressed="!mudo" :aria-label="mudo ? 'Activar el sonido' : 'Silenciar el sonido'" @click="alternarSonido">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><template v-if="!mudo"><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></template><template v-else><path d="m16 9 5 6M21 9l-5 6"/></template></svg>
+          </button>
+          <button class="icono" :aria-expanded="registroAbierto" aria-label="Historial de la partida" @click.stop="registroAbierto = !registroAbierto">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>
+          </button>
+          <button class="icono" aria-label="Cómo se juega" @click="abrirReglas">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.5"/><path d="M12 17h.01"/></svg>
+          </button>
+          <button class="boton chico suave" @click="salir">Salir</button>
+        </div>
       </header>
 
       <!-- Rivales -->
       <ul class="rivales" aria-label="Jugadores">
-        <li v-for="j in p.jugadores" :key="j.id" :class="{ turno: p.turno === j.id, fuera: !j.vivo, yo: j.id === vista.sala.yo }">
-          <span class="avatar" aria-hidden="true">{{ !j.vivo ? '💥' : j.bot ? '🤖' : inicial(j.nombre) }}</span>
-          <span class="nombre">{{ j.nombre }}<small v-if="j.id === vista.sala.yo"> (tú)</small></span>
-          <span class="cartas-n" :title="j.cartas + ' cartas'">🂠 {{ j.cartas }}</span>
-          <span v-if="j.vivo && !j.bot && !j.conectado" class="etiqueta gris">sin conexión</span>
-          <span v-else-if="j.vivo && !j.bot && j.auto" class="etiqueta gris">piloto automático</span>
-          <span v-if="p.turno === j.id && p.turnos_pendientes > 1" class="etiqueta">{{ p.turnos_pendientes }} turnos</span>
+        <li v-for="(j, k) in otros" :key="j.id" class="asiento" :data-asiento="j.id"
+            :class="{ turno: p.turno === j.id && j.vivo && p.fase !== 'fin', fuera: !j.vivo, objetivo: eligiendo && esObjetivo(j), sobre: sobreAsiento === j.id, resalta: resaltado === j.id }"
+            :style="{ '--av': color(j.id), '--dy': arco(k) }">
+          <button class="asiento-btn" :disabled="!(eligiendo && esObjetivo(j))" :aria-label="'Elegir a ' + j.nombre + ' (' + j.cartas + ' cartas)'" @click.stop="confirmarObjetivo(j.id)">
+            <span class="avatar-envoltorio">
+              <span class="avatar" aria-hidden="true">
+                <img width="96" height="96" v-if="!j.vivo" src="/static/img/pinchazo.webp" alt=""><img width="96" height="96" v-else-if="j.bot" src="/static/img/bot.webp" alt=""><template v-else>{{ inicial(j.nombre) }}</template>
+              </span>
+              <svg v-if="p.espera && p.espera.jugador === j.id" class="anillo" viewBox="0 0 36 36" aria-hidden="true">
+                <circle class="pista" cx="18" cy="18" r="16"/><circle class="avance" cx="18" cy="18" r="16" pathLength="100.5" :style="{ strokeDashoffset: (100.5 * (1 - progresoEspera)).toFixed(1) }"/>
+              </svg>
+              <img width="96" height="96" v-if="j.vivo" class="globito" src="/static/img/globo.webp" alt="" aria-hidden="true">
+              <span class="cuenta-cartas" aria-hidden="true">{{ j.cartas }}</span>
+              <img width="96" height="96" v-for="em in emotesDe(j.id)" :key="em.k" class="burbuja" :src="'/static/img/e-' + em.e + '.webp'" alt="">
+            </span>
+            <span class="nombre">{{ j.nombre }}<small v-if="j.vivo && !j.bot && !j.conectado"> · sin conexión</small><small v-else-if="j.vivo && !j.bot && j.auto"> · auto</small></span>
+          </button>
+          <span class="manito" aria-hidden="true"><i v-for="n in Math.min(j.cartas, 6)" :key="n" class="dorsito" :style="{ '--k': n - 1 - (Math.min(j.cartas, 6) - 1) / 2 }"></i></span>
+          <span v-if="p.turno === j.id && p.turnos_pendientes > 1 && j.vivo" class="etiqueta">{{ p.turnos_pendientes }} turnos</span>
         </li>
       </ul>
 
-      <!-- Centro: mazo y descarte -->
+      <!-- Centro: mazo, escenario y globo de riesgo -->
       <div class="centro-mesa">
-        <div class="pila" role="img" :aria-label="'Mazo: ' + p.mazo + ' cartas'">
-          <div class="carta dorso"><span class="dorso-globo">🎈</span></div>
-          <div class="pila-info"><b>{{ p.mazo }}</b> en el mazo</div>
-          <div class="riesgo" :title="'Probabilidad de que la siguiente carta sea un Pinchazo, para quien no ha mirado'">
-            <span>Riesgo de pinchazo</span>
-            <div class="barra-riesgo"><i :style="{ width: Math.round(p.riesgo * 100) + '%' }" :class="nivelRiesgo"></i></div>
-            <b>{{ Math.round(p.riesgo * 100) }} %</b>
-          </div>
-        </div>
-        <div class="pila">
-          <div v-if="p.tope_descarte" class="carta" :class="clase(p.tope_descarte)">
-            <span class="emoji">{{ info(p.tope_descarte).emoji }}</span><span class="titulo">{{ info(p.tope_descarte).nombre }}</span>
-          </div>
-          <div v-else class="carta vacia">vacío</div>
-          <div class="pila-info">descarte ({{ p.descarte }})</div>
-        </div>
-      </div>
-
-      <!-- Carta jugada y ventana de «¡Ni hablar!» -->
-      <div v-if="p.pendiente" class="ventana" :class="{ anulada: p.pendiente.negada }" role="status">
-        <div class="ventana-texto">
-          <b>{{ nombreDe(p.pendiente.jugador) }}</b> juega
-          <span class="cartas-juego"><span v-for="(c, i) in p.pendiente.cartas" :key="i" class="mini" :class="clase(c)">{{ info(c).emoji }} {{ info(c).nombre }}</span></span>
-          <span v-if="p.pendiente.objetivo"> contra <b>{{ nombreDe(p.pendiente.objetivo) }}</b></span>
-          <strong v-if="p.pendiente.negada" class="anulada-txt"> · ANULADA ✋</strong>
-        </div>
-        <div class="ventana-acciones">
-          <span class="cuenta">{{ restanteTexto }}</span>
-          <button v-if="p.pendiente.puedo_negar" class="boton negar" @click="enviar({ accion: 'negar' })">✋ ¡Ni hablar!</button>
-        </div>
-      </div>
-
-      <!-- Lo que viste con la bola de cristal -->
-      <div v-if="yo.vision && yo.vision.length" class="vision" role="status">
-        <span>🔮 Las próximas cartas son (la primera, arriba):</span>
-        <span v-for="(c, i) in yo.vision" :key="i" class="mini" :class="clase(c)">{{ i + 1 }}. {{ info(c).emoji }} {{ info(c).nombre }}</span>
-      </div>
-
-      <!-- Acciones -->
-      <div class="acciones">
-        <template v-if="yo.vivo && p.fase !== 'fin'">
-          <button class="boton principal grande" :disabled="!puedoRobar" @click="enviar({ accion: 'robar' })">
-            Robar carta <small>(termina el turno)</small>
+        <div class="zona-mazo">
+          <button id="mazo" class="mazo" :class="{ listo: puedoRobar, baraja: barajando, mirando: mirando }" :disabled="!puedoRobar"
+                  :aria-label="puedoRobar ? 'Robar una carta del mazo (termina tu turno)' : 'Mazo: ' + p.mazo + ' cartas'" @click.stop="robar">
+            <carta dorso></carta><carta dorso></carta><carta dorso></carta>
+            <span class="num" aria-hidden="true">{{ p.mazo }}</span>
           </button>
-          <button class="boton grande" :disabled="!puedoJugar" @click="jugarSeleccion">
-            {{ sel.length === 2 ? 'Jugar pareja' : 'Jugar carta' }}
-          </button>
-        </template>
-        <p v-else-if="!yo.vivo && p.fase !== 'fin'" class="ayuda centro">Tu globo reventó. Puedes seguir mirando la partida.</p>
+          <p class="etiqueta-zona" :class="{ 'puedo-robar': puedoRobar }">{{ puedoRobar ? 'Toca para robar' : 'Mazo' }}</p>
+        </div>
+
+        <div id="escenario" class="escenario" data-zona="mesa" :class="{ suelta: arrastre && arrastre.mueve && sobreMesa }">
+          <template v-if="p.pendiente">
+            <div class="jugadas" :class="{ anulada: p.pendiente.negada }">
+              <carta v-for="(c, i) in p.pendiente.cartas" :key="c + i" :cid="c"></carta>
+            </div>
+            <div class="ventana" role="status" aria-live="polite">
+              <p>
+                <b>{{ nombreDe(p.pendiente.jugador) }}</b> juega
+                {{ p.pendiente.cartas.length === 2 ? 'una pareja de ' + info(p.pendiente.cartas[0]).nombre : info(p.pendiente.cartas[0]).nombre }}
+                <template v-if="p.pendiente.objetivo"> contra <b>{{ nombreDe(p.pendiente.objetivo) }}</b></template>
+                <template v-if="p.pendiente.negada"> · anulada</template>
+              </p>
+              <div class="reloj" aria-hidden="true"><i :style="{ width: Math.round(progresoEspera * 100) + '%' }"></i></div>
+              <button v-if="p.pendiente.puedo_negar" class="boton negar" @click.stop="enviar({ accion: 'negar' })">¡Ni hablar!</button>
+            </div>
+          </template>
+          <div v-else-if="p.tope_descarte" class="pila" :aria-label="'Descarte: ' + p.descarte + ' cartas'">
+            <carta :cid="p.tope_descarte" class="tope"></carta>
+          </div>
+          <div v-else class="pila vacia">Aquí van las cartas que se juegan</div>
+          <transition name="anuncio"><div v-if="sello" :key="sello.k" class="sello" aria-hidden="true">{{ sello.texto }}</div></transition>
+          <div v-if="arrastre && arrastre.mueve && sobreMesa && !p.pendiente" class="suelta-aqui" aria-hidden="true">Suelta para jugar</div>
+        </div>
+
+        <div class="zona-riesgo">
+          <div class="medidor" :class="nivelRiesgo" role="img" :aria-label="'Riesgo de pinchazo: ' + pctRiesgo + ' por ciento'">
+            <svg viewBox="0 0 90 120" aria-hidden="true">
+              <path d="M45 98c-1 7 4 10 0 16" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.6" stroke-linecap="round"/>
+              <g class="globo-g" :style="{ transform: 'scale(' + escalaGlobo + ')' }">
+                <ellipse cx="45" cy="48" rx="38" ry="46" :fill="colorRiesgo"/>
+                <path d="M45 93l-6 8h12z" :fill="colorRiesgo"/>
+                <ellipse cx="45" cy="48" rx="38" ry="46" fill="url(#sombra-globo)"/>
+                <ellipse cx="29" cy="28" rx="9" ry="15" fill="#fff" opacity=".4" transform="rotate(24 29 28)"/>
+              </g>
+              <defs><radialGradient id="sombra-globo" cx=".35" cy=".3" r=".9"><stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".28"/></radialGradient></defs>
+            </svg>
+            <span class="pct" aria-hidden="true">{{ pctRiesgo }}%</span>
+          </div>
+          <p class="etiqueta-zona">Riesgo de pinchazo</p>
+        </div>
+
+        <div v-if="yo.vision && yo.vision.length && !p.pendiente" class="vision" role="status" aria-live="polite">
+          <p>Próximas cartas</p>
+          <div><carta v-for="(c, i) in yo.vision" :key="i" :cid="c"></carta></div>
+        </div>
       </div>
 
-      <!-- Mi mano -->
-      <div class="mano-zona">
-        <h2 class="mano-titulo">Tu mano <small>({{ yo.mano.length }})</small></h2>
-        <ul class="mano" aria-label="Tu mano de cartas">
-          <li v-for="(c, i) in yo.mano" :key="c + i">
-            <button class="carta" :class="[clase(c), { elegida: sel.includes(i) }]" :aria-pressed="sel.includes(i)"
-                    :aria-label="info(c).nombre + ': ' + info(c).texto" :title="info(c).texto" @click="alternar(i)">
-              <span class="emoji">{{ info(c).emoji }}</span>
-              <span class="titulo">{{ info(c).nombre }}</span>
-              <span class="detalle">{{ info(c).texto }}</span>
+      <!-- Mi zona -->
+      <div class="zona-yo">
+        <p class="pista" aria-live="off"><template v-if="focoCarta"><b>{{ info(focoCarta).nombre }}</b>{{ info(focoCarta).texto }}</template><template v-else>{{ pistaTexto }}</template></p>
+        <div class="acciones">
+          <div class="yo-chip" :class="{ turno: miTurno }" :style="{ '--av': color(yoId) }">
+            <span class="avatar" aria-hidden="true">{{ inicial(nombreDe(yoId)) }}<img width="96" height="96" v-for="em in emotesDe(yoId)" :key="em.k" class="burbuja" :src="'/static/img/e-' + em.e + '.webp' " alt=""></span>
+            <span>{{ nombreDe(yoId) }} <small>{{ yo.vivo ? '· ' + yo.mano.length + ' cartas' : '· fuera' }}</small></span>
+          </div>
+          <button v-if="puedoJugar" class="boton principal" @click.stop="jugarSeleccion">{{ sel.length === 2 ? 'Jugar pareja' : 'Jugar ' + info(cartasSel[0]).nombre }}</button>
+          <button v-if="eligiendo" class="boton suave" @click.stop="cancelar">Cancelar</button>
+          <div class="emotes-caja">
+            <button class="icono" :aria-expanded="emotesAbierto" aria-label="Enviar una reacción" @click.stop="emotesAbierto = !emotesAbierto">
+              <img src="/static/img/e-risa.webp" alt="" width="28" height="28">
             </button>
-          </li>
-        </ul>
-        <p v-if="yo.vivo && miTurno && p.fase === 'turno'" class="ayuda centro">Toca una carta para elegirla (dos iguales de mascota hacen pareja).</p>
-      </div>
+            <div v-if="emotesAbierto" class="emotes-lista" role="group" aria-label="Reacciones">
+              <button v-for="e in emotesLista" :key="e.k" :aria-label="e.t" @click.stop="emote(e.k)"><img width="96" height="96" :src="'/static/img/e-' + e.k + '.webp'" alt=""></button>
+            </div>
+          </div>
+        </div>
 
-      <!-- Registro -->
-      <details class="registro" open>
-        <summary>Qué está pasando</summary>
-        <ol ref="registro"><li v-for="(l, i) in p.log" :key="i + l">{{ l }}</li></ol>
-      </details>
-
-      <!-- ===== Cuadros ===== -->
-      <!-- Elegir a quién -->
-      <div v-if="eligiendoObjetivo" class="velo" @click.self="eligiendoObjetivo = false">
-        <div class="cuadro" role="dialog" aria-modal="true" aria-label="Elegir objetivo">
-          <h2>¿A quién?</h2>
-          <p class="ayuda">{{ sel.length === 2 ? 'Le robarás una carta al azar.' : 'Elegirá ella o él qué carta darte.' }}</p>
-          <button v-for="j in objetivosPosibles" :key="j.id" class="boton grande" @click="confirmarObjetivo(j.id)">
-            {{ j.bot ? '🤖' : '🙂' }} {{ j.nombre }} <small>({{ j.cartas }} cartas)</small>
-          </button>
-          <button class="boton chico" @click="eligiendoObjetivo = false">Cancelar</button>
+        <div class="mano-zona" ref="manoZona">
+          <transition-group tag="ul" name="mano" class="mano" aria-label="Tu mano de cartas">
+            <li v-for="(c, i) in yo.mano" :key="c + '-' + claveCarta(c, i)"
+                :class="{ elegida: sel.includes(i), arrastrando: arrastre && arrastre.mueve && arrastre.i === i, 'no-juega': miTurno && p.fase === 'turno' && !esJugable(c), reacciona: c === 'negar' && p.pendiente && p.pendiente.puedo_negar }"
+                :style="estiloAbanico(i)">
+              <button class="mano-carta" :aria-pressed="sel.includes(i)" :aria-label="info(c).nombre + '. ' + info(c).texto"
+                      @click="alternar(i)" @pointerdown="bajar($event, i)" @pointermove="mover($event)" @pointerup="soltar($event)" @pointercancel="cancelarArrastre"
+                      @pointerenter="foco = i" @pointerleave="foco = -1" @focus="foco = i" @blur="foco = -1">
+                <carta :cid="c" inclinar></carta>
+                <span v-if="mascotaRepetida(c)" class="par" aria-hidden="true">×2</span>
+              </button>
+            </li>
+          </transition-group>
+          <p v-if="!yo.mano.length" class="mano-vacia">{{ yo.vivo ? 'Sin cartas' : 'Tu globo reventó: sigue mirando la partida.' }}</p>
         </div>
       </div>
+
+      <!-- Historial -->
+      <transition name="registro">
+        <aside v-if="registroAbierto" class="registro" aria-label="Historial de la partida" @click.stop>
+          <header><h2>Qué ha pasado</h2><button class="boton chico suave" @click="registroAbierto = false">Cerrar</button></header>
+          <ol ref="registro"><li v-for="(l, i) in p.log" :key="i + l">{{ l }}</li></ol>
+        </aside>
+      </transition>
 
       <!-- Dar una carta (favor) -->
       <div v-if="debeDar" class="velo">
-        <div class="cuadro" role="dialog" aria-modal="true" aria-label="Dar una carta">
-          <h2>{{ nombreDe(p.favor.para) }} te pide un favor</h2>
+        <div class="cuadro" role="dialog" aria-modal="true" aria-labelledby="t-dar">
+          <h2 id="t-dar">{{ nombreDe(p.favor.para) }} te pide un favor</h2>
           <p class="ayuda">Elige qué carta le das. {{ restanteTexto }}</p>
-          <ul class="mano en-cuadro">
-            <li v-for="(c, i) in yo.mano" :key="c + i">
-              <button class="carta" :class="clase(c)" @click="enviar({ accion: 'dar', carta: c })">
-                <span class="emoji">{{ info(c).emoji }}</span><span class="titulo">{{ info(c).nombre }}</span>
-              </button>
-            </li>
+          <ul class="mano-en-cuadro">
+            <li v-for="(c, i) in yo.mano" :key="c + i"><button :aria-label="info(c).nombre" :data-foco="i === 0 ? '' : null" @click="enviar({ accion: 'dar', carta: c })"><carta :cid="c"></carta></button></li>
           </ul>
         </div>
       </div>
 
       <!-- Esconder el pinchazo -->
       <div v-if="debeInsertar" class="velo">
-        <div class="cuadro" role="dialog" aria-modal="true" aria-label="Esconder el pinchazo">
-          <h2>🩹 ¡Te salvaste!</h2>
-          <p class="ayuda">Esconde el 💥 Pinchazo en el mazo ({{ p.mazo }} cartas). Arriba lo robará la siguiente persona; más abajo, más tarde. {{ restanteTexto }}</p>
-          <label class="campo">
-            <span>Posición: <b>{{ posicionTexto }}</b></span>
-            <input type="range" min="0" :max="p.mazo" v-model.number="posicion" aria-label="Posición del pinchazo en el mazo">
-          </label>
-          <div class="fila centrada">
-            <button class="boton" @click="posicion = 0">Arriba del todo</button>
-            <button class="boton" @click="posicion = Math.floor(p.mazo / 2)">En medio</button>
-            <button class="boton" @click="posicion = p.mazo">Al fondo</button>
+        <div class="cuadro" role="dialog" aria-modal="true" aria-labelledby="t-ins">
+          <h2 id="t-ins">¡Te salvaste!</h2>
+          <p class="ayuda">Esconde el Pinchazo en el mazo ({{ p.mazo }} cartas). Arriba lo robará la siguiente persona; más abajo, más tarde. {{ restanteTexto }}</p>
+          <div class="tira">
+            <div class="baraja-barra"></div>
+            <img width="96" height="96" class="marca" src="/static/img/pinchazo.webp" alt="" :style="{ left: (p.mazo ? (posicion / p.mazo) * 100 : 0) + '%' }">
+            <input type="range" min="0" :max="p.mazo" v-model.number="posicion" aria-label="Posición del Pinchazo en el mazo" :aria-valuetext="posicionTexto" data-foco>
           </div>
+          <div class="tira-textos"><span>Arriba (la siguiente)</span><span>Al fondo</span></div>
+          <p class="ayuda" aria-live="polite">{{ posicionTexto }}</p>
+          <div class="fila">
+            <button class="boton suave" @click="posicion = 0">Arriba</button>
+            <button class="boton suave" @click="posicion = Math.floor(p.mazo / 2)">En medio</button>
+          </div>
+          <button class="boton suave" @click="posicion = p.mazo">Al fondo</button>
           <button class="boton principal grande" @click="enviar({ accion: 'insertar', pos: posicion })">Esconderlo</button>
         </div>
       </div>
 
       <!-- Fin de la partida -->
       <div v-if="p.fase === 'fin'" class="velo">
-        <div class="cuadro final" role="dialog" aria-modal="true" aria-label="Fin de la partida">
-          <div class="trofeo" aria-hidden="true">{{ p.ganador === vista.sala.yo ? '🏆' : '🎈' }}</div>
-          <h2>{{ p.ganador === vista.sala.yo ? '¡Has ganado!' : 'Gana ' + nombreDe(p.ganador) }}</h2>
-          <p class="ayuda">{{ p.ganador === vista.sala.yo ? 'Tu globo es el único que sigue entero.' : 'Su globo es el único que sigue entero.' }}</p>
-          <button v-if="soyDuenio" class="boton principal grande" @click="enviar({ accion: 'revancha' })">Jugar otra vez</button>
-          <p v-else class="ayuda centro">{{ nombreDe(vista.sala.duenio) }} puede preparar otra partida.</p>
-          <button class="boton" @click="salir">Salir</button>
+        <div class="cuadro final" role="dialog" aria-modal="true" aria-labelledby="t-fin">
+          <img width="96" height="96" class="trofeo" :src="'/static/img/' + (p.ganador === yoId ? 'trofeo' : 'globo') + '.webp'" alt="">
+          <h2 id="t-fin">{{ p.ganador === yoId ? '¡Has ganado!' : 'Gana ' + nombreDe(p.ganador) }}</h2>
+          <p class="ayuda">{{ p.ganador === yoId ? 'Tu globo es el único que sigue entero.' : 'Su globo es el único que sigue entero.' }}</p>
+          <div class="fila-botones">
+            <button v-if="soyDuenio" class="boton principal grande" data-foco @click="enviar({ accion: 'revancha' })">Jugar otra vez</button>
+            <p v-else class="ayuda centro">{{ nombreDe(vista.sala.duenio) }} puede preparar otra partida.</p>
+            <button class="boton suave" :data-foco="soyDuenio ? null : ''" @click="salir">Salir</button>
+          </div>
         </div>
       </div>
     </section>
   </main>
 
-  <footer class="pie">Pinchazo · juego de cartas original · hecho con FastAPI y Vue</footer>
+  <!-- Carta que se arrastra -->
+  <carta v-if="arrastre && arrastre.mueve" class="fantasma" :class="{ 'sobre-asiento': sobreAsiento }" :cid="arrastre.id" :style="{ transform: 'translate(' + (arrastre.x - arrastre.w / 2) + 'px,' + (arrastre.y - arrastre.h * .55) + 'px)' }"></carta>
+
+  <!-- Reglas y catálogo de cartas -->
+  <dialog ref="reglas" class="reglas" aria-labelledby="t-reglas" @click="cerrarReglasFuera">
+    <div class="reglas-cuerpo">
+      <header>
+        <h2 id="t-reglas">Cómo se juega</h2>
+        <button class="boton chico suave" data-cerrar @click="$refs.reglas.close()">Cerrar</button>
+      </header>
+      <p>Cada persona tiene un globo. En tu turno puedes <b>jugar las cartas que quieras</b> y debes terminar <b>robando una carta</b> del mazo.</p>
+      <p>Si robas un <b>Pinchazo</b> y tienes un <b>Parche</b>, lo gastas y escondes el pinchazo donde quieras en el mazo. Si no tienes Parche, tu globo revienta y quedas fuera. <b>Gana la última persona con el globo entero.</b></p>
+      <p>Para jugar una carta, <b>arrástrala hasta la mesa</b> (o tócala y pulsa «Jugar»). Si necesita a alguien, suéltala sobre su avatar. Para robar, toca el mazo.</p>
+      <ul class="catalogo">
+        <li v-for="(c, id) in catalogo" :key="id">
+          <carta :cid="id" detalle inclinar></carta>
+          <p class="cuantas">{{ c.tipo === 'peligro' ? 'Una menos que jugadores' : c.tipo === 'salvacion' ? 'Una por persona y dos extra' : 'En el mazo: ' + c.cantidad }}</p>
+        </li>
+      </ul>
+    </div>
+  </dialog>
+
+  <footer class="pie" v-if="vista">Pinchazo · ilustraciones Fluent Emoji (MIT), fuentes Fredoka y Figtree (OFL)</footer>
 </div>
 
 <script src="/static/vendor/vue.global.prod.js"></script>

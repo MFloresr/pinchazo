@@ -282,3 +282,35 @@ def test_una_rafaga_de_mensajes_recibe_un_aviso_y_no_se_cuelga(cliente, monkeypa
             if ws.receive_json()["t"] == "pong":
                 return
         raise AssertionError("no volvió a responder")
+
+
+def test_la_vista_incluye_los_eventos_para_animar(cliente):
+    r = cliente.post("/api/rapida", json={"nombre": "Ana", "rivales": 2}).json()
+    with conectar(cliente, r["codigo"], r["token"]) as ws:
+        v = recibir_hasta(ws, lambda v: v.get("partida"))
+        eventos = v["partida"]["eventos"]
+        assert eventos and eventos[0]["tipo"] == "turno" and all("n" in e for e in eventos)
+
+
+def test_los_emotes_llegan_a_todas_las_personas_y_se_limitan(cliente):
+    c = crear(cliente)
+    b = cliente.post(f"/api/salas/{c['codigo']}/unirse", json={"nombre": "Beto"}).json()
+    with conectar(cliente, c["codigo"], c["token"]) as ana, conectar(cliente, c["codigo"], b["token"]) as beto:
+        recibir_hasta(ana, lambda v: len([a for a in v["asientos"] if a["conectado"]]) == 2)
+        ana.send_json({"accion": "emote", "e": "risa"})
+        for ws in (ana, beto):
+            for _ in range(30):
+                m = ws.receive_json()
+                if m["t"] == "emote":
+                    assert m == {"t": "emote", "id": c["id"], "e": "risa"}
+                    break
+            else:
+                raise AssertionError("el emote no llegó")
+        ana.send_json({"accion": "emote", "e": "no_existe"})
+        for _ in range(30):
+            m = ana.receive_json()
+            if m["t"] == "error":
+                assert "emote" in m["mensaje"]
+                break
+        else:
+            raise AssertionError("debía rechazar un emote desconocido")
