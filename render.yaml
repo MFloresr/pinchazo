@@ -1,0 +1,11 @@
+# Despliegue en Render (Blueprint). Importante: el estado de las salas vive en memoria,
+# así que este servicio debe tener UNA sola instancia (no escales a varias).
+services:
+  - type: web
+    name: pinchazo
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /salud
+    autoDeploy: true
