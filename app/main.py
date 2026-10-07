@@ -10,6 +10,7 @@ Rutas
 """
 import asyncio
 import json
+import os
 import time
 from collections import deque
 from contextlib import asynccontextmanager
@@ -28,7 +29,7 @@ from .salas import Salas, limpiar_nombre
 
 ESTATICOS = Path(__file__).parent / "static"
 MAX_MENSAJE = 2000   # bytes: ningún mensaje legítimo es más grande
-MAX_MENSAJES_5S = 40  # por conexión; una persona jugando no llega ni a 10
+MAX_MENSAJES = int(os.environ.get("PINCHAZO_MAX_MENSAJES", "40"))  # por conexión y cada 5 s; una persona jugando no llega ni a 10
 
 salas = Salas()
 
@@ -155,15 +156,20 @@ async def partida(websocket: WebSocket, codigo: str):
         return
     await salas.conectar(sala, asiento, websocket)
     recientes: deque[float] = deque()
+    avisado = False
     try:
         while True:
             texto = await websocket.receive_text()
             ahora = time.monotonic()
             recientes.append(ahora)
-            while recientes and ahora - recientes[0] > 5:
+            while recientes and ahora - recientes[0] > modulo_salas.seg(5):
                 recientes.popleft()
-            if len(recientes) > MAX_MENSAJES_5S:           # demasiados mensajes: se ignora el exceso
+            if len(recientes) > MAX_MENSAJES:              # demasiados mensajes: se ignora el exceso, avisando una vez
+                if not avisado:
+                    avisado = True
+                    await modulo_salas.enviar_error(asiento, "Vas demasiado rápido: espera un momento.")
                 continue
+            avisado = False
             if len(texto) > MAX_MENSAJE:
                 await modulo_salas.enviar_error(asiento, "Mensaje demasiado grande.")
                 continue

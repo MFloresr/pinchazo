@@ -142,7 +142,7 @@ def jugar_como_persona(ws, yo, limite=1500):
         v = m["vista"]
         ultimo = v
         p = v.get("partida")
-        if not p or p["fase"] == "fin":
+        if not p or v["sala"]["estado"] == "fin":
             return v
         if p["fase"] == "turno" and p["turno"] == yo:
             ws.send_json({"accion": "robar"})
@@ -158,9 +158,8 @@ def test_partida_rapida_contra_bots_termina(cliente):
     with conectar(cliente, r['codigo'], r['token']) as ws:
         final = jugar_como_persona(ws, r["id"])
     p = final["partida"]
-    assert p["fase"] == "fin" and p["ganador"]
+    assert p["fase"] == "fin" and p["ganador"] and final["sala"]["estado"] == "fin"
     assert len(p["jugadores"]) == 4 and sum(1 for j in p["jugadores"] if j["bot"]) == 3
-    assert final["sala"]["estado"] in ("jugando", "fin")
 
 
 def test_cada_persona_solo_ve_su_mano(cliente):
@@ -217,7 +216,6 @@ def test_revancha_vuelve_al_vestibulo_sin_los_bots(cliente):
     r = cliente.post("/api/rapida", json={"nombre": "Ana", "rivales": 2}).json()
     with conectar(cliente, r['codigo'], r['token']) as ws:
         jugar_como_persona(ws, r["id"])
-        recibir_hasta(ws, lambda v: v["sala"]["estado"] == "fin")
         ws.send_json({"accion": "revancha"})
         v = recibir_hasta(ws, lambda v: v["sala"]["estado"] == "lobby")
         assert [a["nombre"] for a in v["asientos"]] == ["Ana"] and "partida" not in v
@@ -244,3 +242,43 @@ def test_limpieza_de_salas_abandonadas(cliente, monkeypatch):
     import asyncio
     asyncio.run(salas.limpiar())
     assert salas.get(c["codigo"]) is None
+
+
+def test_una_accion_tardia_tras_el_fin_se_ignora_sin_error(cliente):
+    r = cliente.post("/api/rapida", json={"nombre": "Ana", "rivales": 1}).json()
+    with conectar(cliente, r["codigo"], r["token"]) as ws:
+        jugar_como_persona(ws, r["id"])
+        ws.send_json({"accion": "robar"})          # llega tarde: la partida ya terminó
+        ws.send_json({"accion": "ping"})
+        for _ in range(50):
+            m = ws.receive_json()
+            assert m["t"] != "error", m
+            if m["t"] == "pong":
+                return
+        raise AssertionError("no llegó el pong")
+
+
+def test_una_rafaga_de_mensajes_recibe_un_aviso_y_no_se_cuelga(cliente, monkeypatch):
+    import app.main as principal
+    monkeypatch.setattr(principal, "MAX_MENSAJES", 3)
+    c = crear(cliente)
+    with conectar(cliente, c["codigo"], c["token"]) as ws:
+        for _ in range(30):
+            ws.send_json({"accion": "ping"})
+        avisos = pongs = 0
+        for _ in range(60):
+            m = ws.receive_json()
+            if m["t"] == "error" and "demasiado rápido" in m["mensaje"]:
+                avisos += 1
+            if m["t"] == "pong":
+                pongs += 1
+            if avisos and pongs >= 1:
+                break
+        assert avisos == 1                         # un solo aviso por ráfaga
+        ws.send_json({"accion": "ping"})           # y tras calmarse vuelve a responder
+        time.sleep(0.2)
+        ws.send_json({"accion": "ping"})
+        for _ in range(60):
+            if ws.receive_json()["t"] == "pong":
+                return
+        raise AssertionError("no volvió a responder")

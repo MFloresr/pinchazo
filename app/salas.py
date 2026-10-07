@@ -222,7 +222,8 @@ class Salas:
         sala.tarea = asyncio.create_task(conducir(sala, self))
 
     def volver_al_vestibulo(self, sala: Sala) -> None:
-        if sala.estado != "fin":
+        terminada = sala.estado == "fin" or (sala.partida is not None and sala.partida.fase == Fase.FIN)
+        if not terminada:
             raise ReglaError("La partida aún no ha terminado.")
         sala.asientos = [a for a in sala.asientos if not a.es_bot]
         sala.partida, sala.espera, sala.estado = None, None, "lobby"
@@ -326,6 +327,8 @@ async def mensaje(salas: Salas, sala: Sala, asiento: Asiento, msg: dict) -> None
             elif sala.estado == "jugando":
                 _accion_de_juego(sala, asiento, accion, msg)
                 asiento.fallos, asiento.auto = 0, False
+            elif sala.estado == "fin" and accion in ACCIONES_DE_JUEGO:
+                pass   # una acción que se envió justo antes de terminar la partida: se ignora sin avisar
             else:
                 raise ReglaError("Ahora no se puede hacer eso.")
         if accion == "salir":
@@ -339,6 +342,9 @@ async def mensaje(salas: Salas, sala: Sala, asiento: Asiento, msg: dict) -> None
         return
     sala.evento.set()
     await difundir(sala)
+
+
+ACCIONES_DE_JUEGO = ("jugar", "robar", "negar", "dar", "insertar")
 
 
 def _ajustes(sala: Sala, asiento: Asiento, msg: dict) -> None:
@@ -382,18 +388,21 @@ def _accion_de_juego(sala: Sala, asiento: Asiento, accion: str, msg: dict) -> No
 # ====================================================================== el conductor de la partida
 async def conducir(sala: Sala, salas: Salas) -> None:
     """Hace avanzar la partida hasta que termina."""
+    partida = sala.partida
     try:
         await _esperar_a_alguien(sala)
-        while sala.estado == "jugando" and sala.partida.fase != Fase.FIN:
+        while sala.estado == "jugando" and sala.partida is partida and partida.fase != Fase.FIN:
             await _paso(sala)
-        sala.estado, sala.espera = "fin", None
-        await difundir(sala)
+        if sala.partida is partida:     # si ya se pidió la revancha, la sala es otra y no se toca
+            sala.estado, sala.espera = "fin", None
+            await difundir(sala)
     except asyncio.CancelledError:
         raise
     except Exception:
         log.exception("Error en la sala %s", sala.codigo)
-        sala.estado, sala.espera = "fin", None
-        await difundir(sala)
+        if sala.partida is partida:
+            sala.estado, sala.espera = "fin", None
+            await difundir(sala)
 
 
 async def _esperar_a_alguien(sala: Sala) -> None:
